@@ -1353,3 +1353,4 @@ function initApp() {
 }
 
 window.addEventListener('DOMContentLoaded', initApp);
+
