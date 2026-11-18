@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estimador de Volume por Chuva Aleatória</title>
+
+  <!-- Leaflet CSS (Mapa Interativo) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <!-- KaTeX CSS (Fórmulas Matemáticas de Cálculo 2) -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- 5.1 CABEÇALHO -->
+  <header class="app-header">
+    <div class="container header-inner">
+      <div>
+        <h1>Estimador de Volume por Chuva Aleatória</h1>
+        <p class="subtitle">
+          Ferramenta científica de simulação para estimar volume precipitado, infiltração no solo e escoamento superficial pelo método de Monte Carlo.
+        </p>
+      </div>
+      <nav class="header-nav" aria-label="Modo de relevo">
+        <span class="nav-label">Tipo de relevo:</span>
+        <div class="mode-tabs" role="tablist">
+          <button
+            type="button"
+            class="mode-tab active"
+            id="tab-real"
+            data-terrain-mode="real"
+          >
+            Mapa Topográfico Real
+          </button>
+          <button
+            type="button"
+            class="mode-tab"
+            id="tab-analytic"
+            data-terrain-mode="analytic"
+          >
+            Funções de Cálculo 2
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- 5.2 FORMULÁRIO DE CONFIGURAÇÃO (ELEMENTO CENTRAL) -->
+    <section class="form-section" aria-labelledby="form-title">
+      <div class="section-header">
+        <h2 id="form-title">Configuração da Simulação</h2>
+        <p>Preencha os parâmetros abaixo para executar a estimativa de volume.</p>
+      </div>
+
+      <form id="simulation-form" novalidate>
+        <!-- A. LOCALIZAÇÃO -->
+        <fieldset class="form-group" id="location-fieldset">
+          <legend>A. Localização</legend>
+
+          <!-- Opções quando modo = Mapa Topográfico Real -->
+          <div id="real-controls">
+            <div class="radio-group" role="radiogroup" aria-label="Modalidade de localização">
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="location-mode"
+                  value="cep"
+                  id="loc-mode-cep"
+                />
+                Informar por CEP
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="location-mode"
+                  value="coords"
+                  id="loc-mode-coords"
+                  checked
+                />
+                Informar por coordenadas geográficas
+              </label>
+            </div>
+
+            <!-- Entrada por CEP -->
+            <div id="cep-input-group" class="sub-group hidden">
+              <div class="field-row">
+                <div class="field">
+                  <label for="cep-input">CEP</label>
+                  <input
+                    type="text"
+                    id="cep-input"
+                    placeholder="Ex: 35400-000"
+                    maxlength="9"
+                    autocomplete="postal-code"
+                  />
+                  <span class="field-error" id="cep-error" role="alert"></span>
+                </div>
+                <div class="field-action">
+                  <button type="button" id="btn-lookup-cep" class="btn-secondary">
+                    Identificar coordenadas
+                  </button>
+                </div>
+              </div>
+              <p class="field-feedback" id="cep-feedback"></p>
+            </div>
+
+            <!-- Entrada por Coordenadas Geográficas -->
+            <div id="coords-input-group" class="sub-group">
+              <div class="coords-row">
+                <div class="field">
+                  <label for="lat-input">Latitude (graus decimais)</label>
+                  <input
+                    type="number"
+                    id="lat-input"
+                    step="0.0001"
+                    min="-90"
+                    max="90"
+                    placeholder="Ex: -22.4130"
+                    value="-22.413"
+                    required
+                  />
+                  <span class="field-error" id="lat-error" role="alert"></span>
+                </div>
+                <div class="field">
+                  <label for="lon-input">Longitude (graus decimais)</label>
+                  <input
+                    type="number"
+                    id="lon-input"
+                    step="0.0001"
+                    min="-180"
+                    max="180"
+                    placeholder="Ex: -44.8450"
+                    value="-44.845"
+                    required
+                  />
+                  <span class="field-error" id="lon-error" role="alert"></span>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="preset-location">Ou selecione um local de referência (opcional)</label>
+                  <select id="preset-location">
+                    <option value="-22.413,-44.845">Serra da Mantiqueira (Itatiaia - RJ/MG)</option>
+                    <option value="-12.600,-41.490">Chapada Diamantina (Vale do Pati - BA)</option>
+                    <option value="-22.949,-43.154">Pão de Açúcar / Urca (Rio de Janeiro - RJ)</option>
+                    <option value="-27.995,-49.515">Serra do Rio do Rastro (SC)</option>
+                    <option value="-20.432,-43.505">Ouro Preto (Vales e Morros - MG)</option>
+                  </select>
+                </div>
+                <div class="field-action">
+                  <button type="button" id="btn-fetch-elevation" class="btn-secondary">
+                    Atualizar relevo do local
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="map-wrapper">
+              <span class="field-hint">
+                Mapa da região central (você também pode clicar no mapa para definir as coordenadas):
+              </span>
+              <div id="leaflet-map" class="leaflet-container-box"></div>
+              <div id="api-status" class="api-status" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <!-- Opções quando modo = Funções Analíticas de Cálculo 2 -->
+          <div id="analytic-controls" class="sub-group hidden">
+            <div class="coords-row">
+              <div class="field">
+                <label for="surface-select">Superfície matemática $z = f(x, y)$</label>
+                <select id="surface-select">
+                  <option value="basin">Bacia Parabólica (Vale Central)</option>
+                  <option value="peaks">Morros e Vales Senoidais</option>
+                  <option value="saddle">Vale de Sela (Paraboloide Hiperbólico)</option>
+                  <option value="gaussian_valley">Dois Morros Gaussianos e Bacia</option>
+                  <option value="ridge">Encosta com Calha Fluvial</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="relief-scale">Desnível máximo do relevo (m)</label>
+                <input
+                  type="number"
+                  id="relief-scale"
+                  min="10"
+                  max="2000"
+                  step="10"
+                  value="300"
+                />
+                <span class="field-error" id="relief-error" role="alert"></span>
+              </div>
+            </div>
+            <div class="formula-box" id="surface-formula-box"></div>
+          </div>
+        </fieldset>
+
+        <!-- B. ÁREA DE ABRANGÊNCIA -->
+        <fieldset class="form-group">
+          <legend>B. Área de abrangência</legend>
+          <div class="coords-row">
+            <div class="field">
+              <label for="radius-km">Raio de abrangência ao redor do centro (km)</label>
+              <input
+                type="number"
+                id="radius-km"
+                min="0.1"
+                max="50"
+                step="0.5"
+                placeholder="Ex: 2.0"
+                value="2.0"
+                required
+              />
+              <span class="field-error" id="radius-error" role="alert"></span>
+              <span class="field-hint" id="area-info">
+                Ponto informado usado como centro. Região de 4.0 km × 4.0 km (Área total: 16.0 km²).
+              </span>
+            </div>
+
+            <div class="field">
+              <label for="soil-type">Tipo de solo na região</label>
+              <select id="soil-type">
+                <option value="forest">Solo Florestal / Permeável (alta absorção)</option>
+                <option value="pasture" selected>Solo Misto / Campo (absorção moderada)</option>
+                <option value="clay">Solo Argiloso / Compactado (baixa absorção)</option>
+                <option value="urban">Solo Rochoso / Semi-Impermeável (escoamento elevado)</option>
+              </select>
+              <input type="hidden" id="slope-sensitivity" value="6.0" />
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- C. CONFIGURAÇÃO DA SIMULAÇÃO -->
+        <fieldset class="form-group">
+          <legend>C. Configuração da simulação</legend>
+          <div class="field">
+            <label for="num-points">Quantidade de pontos aleatórios</label>
+            <input
+              type="number"
+              id="num-points"
+              min="100"
+              max="100000"
+              step="500"
+              placeholder="Ex: 10000"
+              value="10000"
+              required
+            />
+            <span class="field-error" id="points-error" role="alert"></span>
+            <span class="field-hint">
+              Os pontos representam as amostras sorteadas na região para estimar o volume pelo método de Monte Carlo.
+            </span>
+          </div>
+        </fieldset>
+
+        <!-- D. PRECIPITAÇÃO -->
+        <fieldset class="form-group">
+          <legend>D. Precipitação</legend>
+          <div class="radio-group" role="radiogroup" aria-label="Modo de precipitação">
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="rain-mode-radio"
+                value="uniform"
+                id="rain-mode-defined"
+              />
+              Chuva com quantidade definida pelo usuário
+            </label>
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="rain-mode-radio"
+                value="random_storm"
+                id="rain-mode-random"
+                checked
+              />
+              Chuva aleatória
+            </label>
+          </div>
+
+          <!-- Select oculto preservado para compatibilidade com a lógica existente -->
+          <select id="rain-mode" class="hidden" aria-hidden="true">
+            <option value="random_storm" selected>Chuva Aleatória Espacial</option>
+            <option value="uniform">Chuva Uniforme Fixa</option>
+            <option value="orographic">Chuva Orográfica</option>
+          </select>
+
+          <div id="defined-rain-group" class="sub-group hidden">
+            <div class="field">
+              <label for="rain-intensity">Precipitação (mm)</label>
+              <input
+                type="number"
+                id="rain-intensity"
+                min="0"
+                max="1000"
+                step="1"
+                placeholder="Ex: 80"
+                value="80"
+              />
+              <span class="field-error" id="rain-error" role="alert"></span>
+              <span class="field-hint">
+                Cada 1 mm de chuva corresponde a 1 litro de água por metro quadrado.
+              </span>
+            </div>
+          </div>
+
+          <p id="random-rain-hint" class="field-hint">
+            A precipitação em cada ponto será gerada automaticamente pela distribuição espacial e estocástica do sistema.
+          </p>
+        </fieldset>
+
+        <!-- E. EXECUÇÃO -->
+        <div class="form-actions">
+          <button type="submit" id="btn-simulate" class="btn-primary">
+            Executar simulação
+          </button>
+          <button type="button" id="btn-reset" class="btn-secondary">
+            Limpar campos
+          </button>
+          <span id="simulation-status" class="simulation-status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+
+    <!-- 6. RESULTADOS (SEÇÃO SEPARADA DO FORMULÁRIO) -->
+    <section class="results-section" id="results-section" aria-labelledby="results-title">
+      <div class="section-header">
+        <h2 id="results-title">Resultados da Simulação</h2>
+        <p id="results-summary-line">
+          Confira abaixo o volume estimado, a divisão entre infiltração e escoamento e as representações topográficas.
+        </p>
+      </div>
+
+      <!-- Resumo Numérico Principal -->
+      <div class="results-overview">
+        <div class="result-item">
+          <span class="result-label">Volume total estimado</span>
+          <strong class="result-value" id="kpi-total-vol">—</strong>
+          <span class="result-detail" id="kpi-avg-rain">Média da chuva: — mm</span>
+        </div>
+
+        <div class="result-item">
+          <span class="result-label">Volume infiltrado no solo</span>
+          <strong class="result-value" id="kpi-infil-vol">—</strong>
+          <span class="result-detail" id="kpi-infil-pct">—% do total</span>
+        </div>
+
+        <div class="result-item">
+          <span class="result-label">Volume escoado para áreas baixas</span>
+          <strong class="result-value" id="kpi-runoff-vol">—</strong>
+          <span class="result-detail" id="kpi-runoff-pct">—% do total</span>
+        </div>
+
+        <div class="result-item">
+          <span class="result-label">Diferença Monte Carlo vs. Riemann</span>
+          <strong class="result-value" id="kpi-mc-error">—</strong>
+          <span class="result-detail" id="kpi-slope-avg">Declividade média: —</span>
+        </div>
+      </div>
+
+      <!-- Dados Utilizados na Simulação -->
+      <div class="simulation-metadata" id="simulation-metadata">
+        <!-- Preenchido via JS com dados da simulação, pontos processados e precipitação -->
+      </div>
+
+      <!-- Representações Gráficas Existentes -->
+      <div class="charts-grid">
+        <div class="chart-container">
+          <div class="chart-header">
+            <div>
+              <h3>Mapa Topográfico (Curvas de Nível) e Escoamento</h3>
+              <p>Curvas de nível em metros, pontos amostrados e acúmulo nas áreas mais baixas</p>
+            </div>
+            <div class="chart-controls">
+              <label class="checkbox-label">
+                <input type="checkbox" id="toggle-rain-dots" checked />
+                Exibir pontos sorteados
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="toggle-runoff-paths" checked />
+                Exibir acúmulo nas baixadas
+              </label>
+            </div>
+          </div>
+          <div id="contour-plot" class="plot-box"></div>
+        </div>
+
+        <div class="chart-container">
+          <div class="chart-header">
+            <div>
+              <h3>Superfície Topográfica 3D</h3>
+              <p>Elevação do terreno e distribuição espacial das amostras</p>
+            </div>
+          </div>
+          <div id="surface-3d-plot" class="plot-box"></div>
+        </div>
+      </div>
+
+      <div class="bottom-grid">
+        <div class="chart-container">
+          <div class="chart-header">
+            <div>
+              <h3>Convergência pelo Método de Monte Carlo</h3>
+              <p>Estabilização do volume estimado conforme o número de pontos processados aumenta</p>
+            </div>
+          </div>
+          <div id="convergence-plot" class="plot-box-small"></div>
+        </div>
+
+        <div class="chart-container">
+          <div class="chart-header">
+            <div>
+              <h3>Memória de Cálculo (Integrais Duplas e Gradiente)</h3>
+              <p>Equações aplicadas sobre os dados da simulação</p>
+            </div>
+          </div>
+          <div id="math-explanation" class="math-content"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Scripts Externos -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
